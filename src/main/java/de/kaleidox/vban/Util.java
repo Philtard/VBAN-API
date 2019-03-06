@@ -72,7 +72,7 @@ public class Util {
     }
 
     /**
-     * Converts an object into a byte-array. Used by {@link VBAN#sendData(Object)}.
+     * Converts an object into a byte-array. Used by {@link VBAN.WriteStream#sendData(Object)}.
      *
      * @param data The object to convert.
      *

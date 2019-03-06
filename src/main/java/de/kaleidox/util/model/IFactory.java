@@ -6,7 +6,7 @@ package de.kaleidox.util.model;
  *
  * @param <T> Generic type to be created.
  */
-public interface Factory<T> {
+public interface IFactory<T> {
     /**
      * Creates a new instance of {@code T} and increments the counter.
      *
@@ -20,4 +20,20 @@ public interface Factory<T> {
      * @return The internal counter.
      */
     int counter();
+
+    interface Advanced<T, P> {
+        /**
+         * Creates a new instance of {@code T} and increments the counter.
+         *
+         * @return A new instance of {@code T}.
+         */
+        T create(P param);
+
+        /**
+         * Returns the internal counter.
+         *
+         * @return The internal counter.
+         */
+        int counter();
+    }
 }

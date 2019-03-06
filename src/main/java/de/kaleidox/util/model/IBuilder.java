@@ -6,7 +6,7 @@ package de.kaleidox.util.model;
  *
  * @param <T> Generic type to be created.
  */
-public interface Builder<T> {
+public interface IBuilder<T> {
     /**
      * Builds a new instance of {@code T} with the (to this point) specified fields and values.
      *

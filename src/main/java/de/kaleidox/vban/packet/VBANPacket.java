@@ -1,6 +1,8 @@
 package de.kaleidox.vban.packet;
 
 import de.kaleidox.util.model.ByteArray;
+import de.kaleidox.util.model.IBuilder;
+import de.kaleidox.util.model.IFactory;
 import de.kaleidox.vban.VBAN.Protocol;
 
 import static de.kaleidox.vban.Util.appendByteArray;
@@ -8,9 +10,9 @@ import static de.kaleidox.vban.Util.appendByteArray;
 /**
  * Structural object representation of a VBAN UDP Packet.
  */
-public class VBANPacket<T> implements ByteArray {
+public class VBANPacket implements ByteArray {
     public static final int MAX_SIZE = 1436;
-    private VBANPacketHead<T> head;
+    private VBANPacketHead head;
     private byte[] bytes;
 
     /**
@@ -18,7 +20,7 @@ public class VBANPacket<T> implements ByteArray {
      *
      * @param head The PacketHead to attach to this packet.
      */
-    private VBANPacket(VBANPacketHead<T> head) {
+    private VBANPacket(VBANPacketHead head) {
         this.head = head;
     }
 
@@ -30,7 +32,7 @@ public class VBANPacket<T> implements ByteArray {
      * @return This instance.
      * @throws IllegalArgumentException If the given byte-array is too large.
      */
-    public VBANPacket<T> setData(byte[] data) throws IllegalArgumentException {
+    public VBANPacket setData(byte[] data) throws IllegalArgumentException {
         if (data.length > MAX_SIZE)
             throw new IllegalArgumentException("Data is too large to be sent! Must be smaller than " + MAX_SIZE);
         bytes = data;
@@ -42,16 +44,19 @@ public class VBANPacket<T> implements ByteArray {
         return appendByteArray(head.getBytes(), bytes);
     }
 
-    public static class Factory<T> implements de.kaleidox.util.model.Factory<VBANPacket<T>> {
-        private final VBANPacketHead.Factory<T> headFactory;
+    public static class Factory implements IFactory.Advanced<VBANPacket, byte[]> {
 
-        private Factory(VBANPacketHead.Factory<T> headFactory) {
+        private final IFactory<VBANPacketHead> headFactory;
+
+        public Factory(IFactory<VBANPacketHead> headFactory) {
             this.headFactory = headFactory;
         }
 
         @Override
-        public VBANPacket<T> create() {
-            return new VBANPacket<>(headFactory.create());
+        public VBANPacket create(byte... data) {
+            VBANPacket packet = new VBANPacket(headFactory.create());
+            packet.bytes = data;
+            return packet;
         }
 
         @Override
@@ -63,21 +68,17 @@ public class VBANPacket<T> implements ByteArray {
             return new Builder<>(protocol);
         }
 
-        public static class Builder<T> implements de.kaleidox.util.model.Builder<Factory<T>> {
+        public static class Builder<T> implements IBuilder<Factory> {
             private final Protocol<T> protocol;
-            private VBANPacketHead.Factory<T> headFactory;
+            private IFactory<VBANPacketHead> headFactory;
 
             private Builder(Protocol<T> protocol) {
                 this.protocol = protocol;
 
-                setDefaultFactory();
+                setHeadFactory(VBANPacketHead.defaultFactory(protocol));
             }
 
-            public Builder<T> setDefaultFactory() {
-                return setHeadFactory(VBANPacketHead.defaultFactory(protocol));
-            }
-
-            public VBANPacketHead.Factory getHeadFactory() {
+            public IFactory<VBANPacketHead> getHeadFactory() {
                 return headFactory;
             }
 
@@ -87,8 +88,8 @@ public class VBANPacket<T> implements ByteArray {
             }
 
             @Override
-            public Factory<T> build() {
-                return new Factory<>(headFactory);
+            public Factory build() {
+                return new Factory(headFactory);
             }
         }
     }

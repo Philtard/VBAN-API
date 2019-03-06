@@ -1,6 +1,8 @@
 package de.kaleidox.vban.packet;
 
 import de.kaleidox.util.model.ByteArray;
+import de.kaleidox.util.model.IBuilder;
+import de.kaleidox.util.model.IFactory;
 import de.kaleidox.vban.VBAN.AudioFormat;
 import de.kaleidox.vban.VBAN.BitsPerSecond;
 import de.kaleidox.vban.VBAN.Codec;
@@ -19,7 +21,7 @@ import static de.kaleidox.vban.Util.stringToBytesASCII;
 import static de.kaleidox.vban.Util.trimArray;
 import static de.kaleidox.vban.packet.VBANPacketHead.Factory.builder;
 
-public class VBANPacketHead<T> implements ByteArray {
+public class VBANPacketHead implements ByteArray {
     public final static int SIZE = 28;
 
     private final byte[] bytes;
@@ -87,30 +89,7 @@ public class VBANPacketHead<T> implements ByteArray {
         return builder(Protocol.TEXT).build();
     }
 
-    /**
-     * Creates a Factory with the default settings for serial streams.
-     *
-     * @return A new Factory instance.
-     * @deprecated Use {@link #defaultFactory(Protocol)} instead.
-     */
-    @Deprecated
-    public static Factory<CharSequence> defaultSerialProtocolFactory() {
-        return builder(Protocol.SERIAL).build();
-    }
-
-    /**
-     * Creates a Factory with the default settings for service streams.
-     *
-     * @return A new Factory instance.
-     * @throws UnsupportedOperationException Always, because Service communication is currently unsupported.
-     * @deprecated Use {@link #defaultFactory(Protocol)} instead.
-     */
-    @Deprecated
-    public static Factory<ByteArray> defaultServiceProtocolFactory() throws UnsupportedOperationException {
-        return builder(Protocol.SERVICE).build();
-    }
-
-    public static class Factory<T> implements de.kaleidox.util.model.Factory<VBANPacketHead<T>> {
+    public static class Factory<T> implements IFactory<VBANPacketHead> {
         private final int protocol;
         private final int sampleRateIndex;
         private final int samples;
@@ -139,8 +118,17 @@ public class VBANPacketHead<T> implements ByteArray {
         }
 
         @Override
-        public synchronized VBANPacketHead<T> create() {
-            return new VBANPacketHead<>(protocol, sampleRateIndex, samples, channel, format, codec, streamName, counter++);
+        public synchronized VBANPacketHead create() {
+            return new VBANPacketHead(
+                    protocol,
+                    sampleRateIndex,
+                    samples,
+                    channel,
+                    format,
+                    codec,
+                    streamName,
+                    counter++
+            );
         }
 
         @Override
@@ -167,13 +155,12 @@ public class VBANPacketHead<T> implements ByteArray {
          * @param <T>      Type-Variable for the stream type.
          *
          * @return A new builder for the given protocol.
-         * @throws UnsupportedOperationException If the protocol is {@link Protocol#SERVICE}.
          */
         public static <T> Builder<T> builder(Protocol<T> protocol) throws UnsupportedOperationException {
             return new Builder<>(protocol);
         }
 
-        public static class Builder<T> implements de.kaleidox.util.model.Builder<Factory<T>> {
+        public static class Builder<T> implements IBuilder<Factory<T>> {
             private final Protocol<T> protocol;
             private SRValue<T> sampleRate;
             private int samples;
@@ -264,6 +251,8 @@ public class VBANPacketHead<T> implements ByteArray {
             }
 
             public Builder setCodec(int codec) {
+                if (protocol == Protocol.AUDIO && codec != Codec.PCM)
+                    throw new IllegalStateException("Only PCM codec is supported!");
                 this.codec = codec;
                 return this;
             }
