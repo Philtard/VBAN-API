@@ -7,7 +7,6 @@ import de.kaleidox.vban.VBAN.Codec;
 import de.kaleidox.vban.VBAN.Format;
 import de.kaleidox.vban.VBAN.Protocol;
 import de.kaleidox.vban.VBAN.SampleRate;
-import de.kaleidox.vban.model.AudioPacket;
 import de.kaleidox.vban.model.FormatValue;
 import de.kaleidox.vban.model.SRValue;
 
@@ -73,7 +72,7 @@ public class VBANPacketHead<T> implements ByteArray {
      * @deprecated Use {@link #defaultFactory(Protocol)} instead.
      */
     @Deprecated
-    public static Factory<AudioPacket> defaultAudioProtocolFactory(int channel) throws UnsupportedOperationException {
+    public static Factory<byte[]> defaultAudioProtocolFactory(int channel) throws UnsupportedOperationException {
         return builder(Protocol.AUDIO).build();
     }
 
@@ -113,7 +112,7 @@ public class VBANPacketHead<T> implements ByteArray {
 
     public static class Factory<T> implements de.kaleidox.util.model.Factory<VBANPacketHead<T>> {
         private final int protocol;
-        private final int sampleRate;
+        private final int sampleRateIndex;
         private final int samples;
         private final int channel;
         private final int format;
@@ -122,14 +121,14 @@ public class VBANPacketHead<T> implements ByteArray {
         private int counter;
 
         private Factory(Protocol<T> protocol,
-                        SRValue<T> sampleRate,
+                        SRValue<T> sampleRateIndex,
                         int samples,
                         int channel,
                         FormatValue<T> format,
                         int codec,
                         String streamName) {
             this.protocol = protocol.getValue();
-            this.sampleRate = sampleRate.getValue();
+            this.sampleRateIndex = sampleRateIndex.getValue();
             this.samples = samples;
             this.channel = channel;
             this.format = format.getValue();
@@ -141,12 +140,24 @@ public class VBANPacketHead<T> implements ByteArray {
 
         @Override
         public synchronized VBANPacketHead<T> create() {
-            return new VBANPacketHead<>(protocol, sampleRate, samples, channel, format, codec, streamName, counter++);
+            return new VBANPacketHead<>(protocol, sampleRateIndex, samples, channel, format, codec, streamName, counter++);
         }
 
         @Override
         public synchronized int counter() {
             return counter;
+        }
+
+        public javax.sound.sampled.AudioFormat createAudioFormat() {
+            if (protocol == Protocol.AUDIO.getValue())
+                return new javax.sound.sampled.AudioFormat(
+                        SampleRate.fromIndex(sampleRateIndex),
+                        samples,
+                        channel,
+                        true,
+                        false
+                );
+            return null;
         }
 
         /**

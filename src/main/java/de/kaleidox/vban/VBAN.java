@@ -8,11 +8,13 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 
+import javax.sound.sampled.LineUnavailableException;
+
 import de.kaleidox.util.model.Bindable;
 import de.kaleidox.util.model.ByteArray;
 import de.kaleidox.util.model.Factory;
 import de.kaleidox.util.model.IntEnum;
-import de.kaleidox.vban.model.AudioPacket;
+import de.kaleidox.vban.audio.VBANAudio;
 import de.kaleidox.vban.model.FormatValue;
 import de.kaleidox.vban.model.SRValue;
 import de.kaleidox.vban.packet.VBANPacket;
@@ -32,12 +34,12 @@ import static de.kaleidox.vban.packet.VBANPacket.MAX_SIZE;
  */
 public class VBAN<T> extends OutputStream {
     public static final int DEFAULT_PORT = 6980;
-    private final InetAddress address;
-    private final int port;
-    private Factory<VBANPacket<T>> packetFactory;
-    private DatagramSocket socket;
-    private byte[] buf = new byte[0];
-    private boolean closed = false;
+    protected final InetAddress address;
+    protected final int port;
+    protected Factory<VBANPacket<T>> packetFactory;
+    protected DatagramSocket socket;
+    protected byte[] buf = new byte[0];
+    protected boolean closed = false;
 
     /**
      * Private constructor. Use {@link #openByteStream(Factory, InetAddress, int)} for creating raw instances.
@@ -48,7 +50,9 @@ public class VBAN<T> extends OutputStream {
      *
      * @throws SocketException See {@link DatagramSocket} constructor.
      */
-    private VBAN(Factory<VBANPacket<T>> packetFactory, InetAddress address, int port) throws SocketException {
+    protected VBAN(Factory<VBANPacket<T>> packetFactory, InetAddress address, int port) throws SocketException {
+        super();
+
         this.packetFactory = packetFactory;
         this.address = address;
         this.port = port;
@@ -169,8 +173,11 @@ public class VBAN<T> extends OutputStream {
      * @return A new VBAN stream that can accept a {@link ByteArray} with {@link #sendData(Object)}.
      * @throws SocketException See {@link DatagramSocket} constructor.
      */
-    public static VBAN<ByteArray> openByteStream(Factory<VBANPacket<ByteArray>> packetFactory, InetAddress address, int port)
-            throws SocketException {
+    public static VBAN<ByteArray> openByteStream(
+            Factory<VBANPacket<ByteArray>> packetFactory,
+            InetAddress address,
+            int port
+    ) throws SocketException {
         return new VBAN<>(packetFactory, address, port);
     }
 
@@ -200,10 +207,22 @@ public class VBAN<T> extends OutputStream {
         return new VBAN<>(builder(Protocol.TEXT).build(), address, port);
     }
 
+    public static VBANAudio.SendStream openAudioSendStream(InetAddress address, int port) throws SocketException {
+        VBANPacket.Factory.Builder<byte[]> builder = builder(Protocol.AUDIO);
+
+        return new VBANAudio.SendStream(builder.getHeadFactory().createAudioFormat(), builder.build(), address, port);
+    }
+
+    public static VBANAudio.RecieveStream openAudioRecieveStream(InetAddress address, int port) throws LineUnavailableException {
+        VBANPacket.Factory.Builder<byte[]> builder = builder(Protocol.AUDIO);
+
+        return new VBANAudio.RecieveStream(builder.build(), address, port);
+    }
+
     /**
      * Collection of sample rate indices, required for creating a {@link VBANPacketHead.Factory}.
      */
-    public enum SampleRate implements SRValue<AudioPacket> {
+    public enum SampleRate implements SRValue<byte[]> {
         Hz6000,
         Hz12000,
         Hz24000,
@@ -231,6 +250,10 @@ public class VBAN<T> extends OutputStream {
         @Override
         public int getValue() {
             return ordinal();
+        }
+
+        public static int fromIndex(int index) {
+            return Integer.parseInt(values()[index].name().substring(2));
         }
     }
 
@@ -273,7 +296,7 @@ public class VBAN<T> extends OutputStream {
     /**
      * Collection of format values, required for creating a {@link VBANPacketHead.Factory}.
      */
-    public enum AudioFormat implements FormatValue<AudioPacket> {
+    public enum AudioFormat implements FormatValue<byte[]> {
         BYTE8(0x00),
         INT16(0x01),
         INT24(0x02),
@@ -324,7 +347,7 @@ public class VBAN<T> extends OutputStream {
      * Collection of protocol values, required for creating a {@link VBANPacketHead.Factory}.
      */
     public static final class Protocol<T> implements Bindable<T>, IntEnum {
-        public final static Protocol<AudioPacket> AUDIO = new Protocol<>(0x00);
+        public final static Protocol<byte[]> AUDIO = new Protocol<>(0x00);
         public final static Protocol<CharSequence> SERIAL = new Protocol<>(0x20);
         public final static Protocol<String> TEXT = new Protocol<>(0x40);
         public final static Protocol<ByteArray> SERVICE = new Protocol<>(0x60);
