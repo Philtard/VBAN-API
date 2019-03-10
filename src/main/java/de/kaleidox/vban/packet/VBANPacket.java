@@ -1,8 +1,7 @@
 package de.kaleidox.vban.packet;
 
 import de.kaleidox.util.model.ByteArray;
-import de.kaleidox.util.model.IBuilder;
-import de.kaleidox.util.model.IFactory;
+import de.kaleidox.util.model.Construction;
 import de.kaleidox.vban.VBAN.Protocol;
 
 import static de.kaleidox.vban.Util.appendByteArray;
@@ -12,6 +11,7 @@ import static de.kaleidox.vban.Util.appendByteArray;
  */
 public class VBANPacket implements ByteArray {
     public static final int MAX_SIZE = 1436;
+    public final Factory factory;
     private VBANPacketHead head;
     private byte[] bytes;
 
@@ -20,7 +20,8 @@ public class VBANPacket implements ByteArray {
      *
      * @param head The PacketHead to attach to this packet.
      */
-    private VBANPacket(VBANPacketHead head) {
+    private VBANPacket(final Factory factory, VBANPacketHead head) {
+        this.factory = factory;
         this.head = head;
     }
 
@@ -44,17 +45,17 @@ public class VBANPacket implements ByteArray {
         return appendByteArray(head.getBytes(), bytes);
     }
 
-    public static class Factory implements IFactory.Advanced<VBANPacket, byte[]> {
+    public static class Factory implements Construction.Factory.Advanced<VBANPacket, byte[]> {
 
-        private final IFactory<VBANPacketHead> headFactory;
+        private final VBANPacketHead.Factory headFactory;
 
-        public Factory(IFactory<VBANPacketHead> headFactory) {
+        public Factory(VBANPacketHead.Factory headFactory) {
             this.headFactory = headFactory;
         }
 
         @Override
         public VBANPacket create(byte... data) {
-            VBANPacket packet = new VBANPacket(headFactory.create());
+            VBANPacket packet = new VBANPacket(this, headFactory.create());
             packet.bytes = data;
             return packet;
         }
@@ -68,9 +69,9 @@ public class VBANPacket implements ByteArray {
             return new Builder<>(protocol);
         }
 
-        public static class Builder<T> implements IBuilder<Factory> {
+        public static class Builder<T> implements Construction.Builder<Factory> {
             private final Protocol<T> protocol;
-            private IFactory<VBANPacketHead> headFactory;
+            private VBANPacketHead.Factory headFactory;
 
             private Builder(Protocol<T> protocol) {
                 this.protocol = protocol;
@@ -78,11 +79,11 @@ public class VBANPacket implements ByteArray {
                 setHeadFactory(VBANPacketHead.defaultFactory(protocol));
             }
 
-            public IFactory<VBANPacketHead> getHeadFactory() {
+            public VBANPacketHead.Factory getHeadFactory() {
                 return headFactory;
             }
 
-            public Builder<T> setHeadFactory(VBANPacketHead.Factory<T> headFactory) {
+            public Builder setHeadFactory(VBANPacketHead.Factory headFactory) {
                 this.headFactory = headFactory;
                 return this;
             }

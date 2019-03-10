@@ -9,6 +9,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.util.Arrays;
+import java.util.NoSuchElementException;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
@@ -37,20 +38,22 @@ public final class VBAN {
     }
 
     public static class ReadStream extends InputStream {
-        protected final boolean async;
+        public final boolean async;
+
         private final InetAddress address;
         private final int port;
         private final DatagramSocket socket;
         private final Queue<Byte> rcv;
-        protected boolean closed = false;
 
+        protected boolean closed = false;
 
         /**
          * Creates a ReadStream.
          * This ReadStream only reads when {@link #read()} was invoked.
          *
          * @param address The address to listen to.
-         * @param port The port to listen on.
+         * @param port    The port to listen on.
+         *
          * @throws SocketException See {@link DatagramSocket} constructor.
          */
         public ReadStream(InetAddress address, int port) throws SocketException {
@@ -65,12 +68,13 @@ public final class VBAN {
 
         /**
          * Creates an async reading and buffering ReadStream.
-         *
+         * <p>
          * An async ReadStream permanently reads packets and buffers the results.
          *
-         * @param exc The ExecutorService to run the async reading on.
+         * @param exc     The ExecutorService to run the async reading on.
          * @param address The address to listen to.
-         * @param port The port to listen on.
+         * @param port    The port to listen on.
+         *
          * @throws SocketException See {@link DatagramSocket} constructor.
          */
         public ReadStream(ExecutorService exc, InetAddress address, int port) throws SocketException {
@@ -127,6 +131,9 @@ public final class VBAN {
         @Override
         public void close() throws IOException {
             if (closed) throw new IOException("Stream already is closed");
+
+            socket.close();
+
             closed = true;
         }
 
@@ -138,19 +145,26 @@ public final class VBAN {
             @SuppressWarnings("InfiniteLoopStatement")
             @Override
             public void run() {
-                while (true) {
-                    try {
-                        synchronized (rcv) {
-                            byte[] buffer = new byte[VBANPacket.MAX_SIZE];
-                            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                            socket.receive(packet);
+                try {
+                    while (true) {
+                        try {
+                            synchronized (rcv) {
+                                byte[] buffer = new byte[VBANPacket.MAX_SIZE];
+                                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                                socket.receive(packet);
 
-                            for (byte b : buffer) rcv.add(b);
-                            rcv.notify();
+                                for (byte b : buffer) rcv.add(b);
+                                rcv.notify();
+                            }
+                        } catch (IOException e) {
+                            if (e instanceof SocketException) throw e;
+                            e.printStackTrace();
                         }
-                    } catch (IOException e) {
-                        e.printStackTrace();
                     }
+                } catch (Throwable e) {
+                    RuntimeException runtimeException = new RuntimeException("Fatal exception in ReadThread", e);
+                    runtimeException.printStackTrace();
+                    throw runtimeException;
                 }
             }
         }
@@ -161,6 +175,8 @@ public final class VBAN {
         private final InetAddress address;
         private final int port;
         private final DatagramSocket socket;
+
+        public boolean autoflush = false;
 
         protected byte[] buffer;
         protected int index;
@@ -217,6 +233,12 @@ public final class VBAN {
             buffer[index++] = (byte) b;
         }
 
+        @Override
+        public void write(@NotNull byte[] b, int off, int len) throws IOException {
+            super.write(b, off, len);
+            if (autoflush) flush();
+        }
+
         /**
          * Sends this stream's byte buffer to the specified {@linkplain InetAddress address} on the specified {@code
          * port},
@@ -244,6 +266,8 @@ public final class VBAN {
             if (closed) throw new IOException("Stream already is closed");
             flush();
 
+            socket.close();
+
             closed = true;
         }
 
@@ -269,12 +293,11 @@ public final class VBAN {
      */
     public static final class Protocol<T> implements Bindable<T>, IntEnum {
         public final static Protocol<byte[]> AUDIO = new Protocol<>(0x00);
+        public final static Protocol SERIAL = new Protocol(0x20);
         public final static Protocol<String> TEXT = new Protocol<>(0x40);
-        /**
-         * Unimplemented Protocols
-         */
-        private final static Protocol<Void> SERIAL = new Protocol<>(0x20);
-        private final static Protocol<Void> SERVICE = new Protocol<>(0x60);
+        public final static Protocol SERVICE = new Protocol(0x60);
+
+        private final static Protocol[] values = new Protocol[]{AUDIO, SERIAL, TEXT, SERVICE};
 
         private final int value;
 
@@ -304,6 +327,15 @@ public final class VBAN {
         @Override
         public int getValue() {
             return value;
+        }
+
+        public static Protocol[] values() {
+            return values;
+        }
+
+        public static Protocol fromInt(int protocol) {
+            for (Protocol p : values()) if (p.value == protocol) return p;
+            throw new NoSuchElementException("Protocol with bitmask " + Integer.toHexString(protocol));
         }
     }
 
@@ -335,17 +367,28 @@ public final class VBAN {
         Hz352800,
         Hz705600;
 
+        private final int rate;
+
+        SampleRate() {
+            rate = Integer.parseInt(name().substring(2));
+        }
+
+        SampleRate(int rate) {
+            this.rate = rate;
+        }
+
         @Override
         public int getValue() {
             return ordinal();
         }
 
-        public static int fromIndex(int index) {
-            return Integer.parseInt(values()[index].name().substring(2));
+        @Override
+        public int getRate() {
+            return rate;
         }
     }
 
-    public enum BitsPerSecond implements SRValue<String> {
+    public enum BitsPerSecond implements SRValue {
         Bps0,
         Bps110,
         Bps150,
@@ -375,9 +418,24 @@ public final class VBAN {
         Bps2000000,
         Bps3000000;
 
+        private final int rate;
+
+        BitsPerSecond() {
+            rate = Integer.parseInt(name().substring(3));
+        }
+
+        BitsPerSecond(int rate) {
+            this.rate = rate;
+        }
+
         @Override
         public int getValue() {
             return ordinal();
+        }
+
+        @Override
+        public int getRate() {
+            return rate;
         }
     }
 
@@ -404,9 +462,14 @@ public final class VBAN {
         public int getValue() {
             return value;
         }
+
+        public static AudioFormat fromInt(int format) {
+            for (AudioFormat audioFormat : values()) if (audioFormat.value == format) return audioFormat;
+            throw new NoSuchElementException("AudioFormat with bitmask " + Integer.toHexString(format));
+        }
     }
 
-    public enum Format implements FormatValue<String> {
+    public enum Format implements FormatValue {
         BYTE8(0x00);
 
         private final int value;

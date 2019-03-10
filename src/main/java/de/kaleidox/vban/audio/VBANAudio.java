@@ -2,6 +2,7 @@ package de.kaleidox.vban.audio;
 
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -16,11 +17,15 @@ import de.kaleidox.vban.packet.VBANPacket;
 import org.jetbrains.annotations.NotNull;
 
 public final class VBANAudio {
+    public static RecieveStream openRecieveStream(ExecutorService exc, InetAddress address, int port) throws SocketException {
+        return new RecieveStream(exc, address, port);
+    }
+
     public static class RecieveStream extends VBAN.ReadStream {
         private PlaybackThread playbackThread = null;
 
-        public RecieveStream(InetAddress address, int port) throws SocketException {
-            super(address, port);
+        private RecieveStream(ExecutorService exc, InetAddress address, int port) throws SocketException {
+            super(exc, address, port);
         }
 
         public Future<Void> playback(ExecutorService exc) {
@@ -44,6 +49,7 @@ public final class VBANAudio {
                     line = (SourceDataLine) AudioSystem.getLine(info);
                     line.open(af, 4096);
                     line.start();
+                    System.out.println("line started");
                 } catch (Throwable e) {
                     throw new RuntimeException("Internal Error", e);
                 }
@@ -52,6 +58,7 @@ public final class VBANAudio {
                     try {
                         byte[] bytes = new byte[VBANPacket.MAX_SIZE];
                         int read = read(bytes);
+                        System.out.println("bytes recieved: "+ Arrays.toString(bytes));
 
                         line.write(bytes, 0, read);
                     } catch (Throwable e) {

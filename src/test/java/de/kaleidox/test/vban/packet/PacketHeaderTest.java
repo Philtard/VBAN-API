@@ -30,4 +30,24 @@ public class PacketHeaderTest {
     public void testHeaderSize() {
         assertEquals(28, headFactory.create().getBytes().length);
     }
+
+    @Test
+    public void testHeaderDecomposing() {
+        testHeaderDecomposing(headFactory);
+
+        testHeaderDecomposing(VBANPacketHead.defaultFactory(VBAN.Protocol.AUDIO));
+    }
+
+    private void testHeaderDecomposing(VBANPacketHead.Factory factory) {
+        VBANPacketHead.Properties properties = VBANPacketHead.getProperties(factory.create().getBytes());
+
+        assertEquals(factory.getProtocol(), properties.protocol);
+        assertEquals(factory.getSampleRate(), properties.sampleRate);
+        assertEquals(factory.getSamples(), properties.samples);
+        assertEquals(factory.getChannel(), properties.channel);
+        assertEquals(factory.getFormat(), properties.format);
+        assertEquals(factory.getCodec(), properties.codec);
+        assertEquals(factory.getStreamName(), properties.streamName);
+        assertEquals(factory.counter() - 1, properties.frameCounter);
+    }
 }
